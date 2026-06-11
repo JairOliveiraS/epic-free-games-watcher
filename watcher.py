@@ -48,7 +48,7 @@ def fetch_free_games():
         # Check current free games
         for offer in promos.get("promotionalOffers", []):
             for promo in offer.get("promotionalOffers", []):
-                if promo.get("discountPercentage") == 0:
+                if promo.get("discountPercentage") in (0, None):
                     start = promo.get("startDate", "")[:10]
                     end = promo.get("endDate", "")[:10]
                     current_free.append({"title": title, "slug": slug, "start": start, "end": end, "id": slug})
@@ -56,7 +56,7 @@ def fetch_free_games():
         # Check upcoming free games
         for offer in promos.get("upcomingPromotionalOffers", []):
             for promo in offer.get("promotionalOffers", []):
-                if promo.get("discountPercentage") == 0:
+                if promo.get("discountPercentage") in (0, None):
                     start = promo.get("startDate", "")[:10]
                     end = promo.get("endDate", "")[:10]
                     upcoming_free.append({"title": title, "slug": slug, "start": start, "end": end, "id": slug})
