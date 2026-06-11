@@ -7,7 +7,7 @@ import urllib.error
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 SEEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen_games.json")
-EPIC_API = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR"
+EPIC_API = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US"
 
 
 def load_seen():
@@ -41,25 +41,38 @@ def fetch_free_games():
         if not slug:
             continue
 
-        promos = game.get("promotions", {})
+        promos = game.get("promotions")
         if not promos:
             continue
 
-        # Check current free games
+        price_info = game.get("price", {}).get("totalPrice", {})
+        original_price = price_info.get("originalPrice", -1)
+        discount_price = price_info.get("discountPrice", -1)
+
+        # Current free: has an active promo and price is 0
         for offer in promos.get("promotionalOffers", []):
             for promo in offer.get("promotionalOffers", []):
-                if promo.get("discountPercentage") in (0, None):
-                    start = promo.get("startDate", "")[:10]
-                    end = promo.get("endDate", "")[:10]
-                    current_free.append({"title": title, "slug": slug, "start": start, "end": end, "id": slug})
+                start = promo.get("startDate", "")[:10]
+                end = promo.get("endDate", "")[:10]
+                if discount_price == 0:
+                    current_free.append({
+                        "title": title, "slug": slug,
+                        "start": start, "end": end,
+                        "id": slug, "original_price": original_price
+                    })
 
-        # Check upcoming free games
+        # Upcoming free: has upcoming promo and is not already free
         for offer in promos.get("upcomingPromotionalOffers", []):
             for promo in offer.get("promotionalOffers", []):
-                if promo.get("discountPercentage") in (0, None):
-                    start = promo.get("startDate", "")[:10]
-                    end = promo.get("endDate", "")[:10]
-                    upcoming_free.append({"title": title, "slug": slug, "start": start, "end": end, "id": slug})
+                start = promo.get("startDate", "")[:10]
+                end = promo.get("endDate", "")[:10]
+                if discount_price != 0:
+                    upcoming_free.append({
+                        "title": title, "slug": slug,
+                        "start": start, "end": end,
+                        "id": slug + "_upcoming_" + start,
+                        "original_price": original_price
+                    })
 
     return current_free, upcoming_free
 
@@ -100,16 +113,22 @@ def main():
 
     print("[INFO] Checking Epic Games Store for free games...")
     current_free, upcoming_free = fetch_free_games()
+    print("[INFO] Found " + str(len(current_free)) + " currently free, " + str(len(upcoming_free)) + " upcoming free")
 
-    # Check for new CURRENTLY free games
+    # Notify about new CURRENTLY free games
     new_current = [g for g in current_free if g["id"] not in seen_current]
     if new_current:
         print("[INFO] Found " + str(len(new_current)) + " new FREE game(s)!")
         for game in new_current:
             url = "https://store.epicgames.com/p/" + game["slug"]
+            if game["original_price"] > 0:
+                orig = "$" + str(game["original_price"] / 100.0)
+            else:
+                orig = "FREE"
             msg = (
                 "\U0001f3ae FREE NOW on Epic Games Store!\n\n"
                 "\U0001f4cc " + game["title"] + "\n"
+                "\U0001f4b0 " + orig + " \u2192 FREE\n"
                 "\U0001f4c5 Free until " + game["end"] + "\n\n"
                 "\U0001f517 " + url
             )
@@ -119,7 +138,7 @@ def main():
     else:
         print("[INFO] No new free games found.")
 
-    # Check for new UPCOMING free games
+    # Notify about new UPCOMING free games
     new_upcoming = [g for g in upcoming_free if g["id"] not in seen_upcoming]
     if new_upcoming:
         print("[INFO] Found " + str(len(new_upcoming)) + " new UPCOMING free game(s)!")
