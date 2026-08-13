@@ -32,7 +32,7 @@ A bot that notifies you when Epic Games Store releases new free games — on Tel
 2. Go to the **Bot** tab → **Reset Token** and copy the token (this is your `DISCORD_BOT_TOKEN`)
 3. Go to **OAuth2 → URL Generator**:
    - Under **Scopes**, tick **bot**
-   - Under **Bot Permissions**, tick **Send Messages**
+   - Under **Bot Permissions**, tick **Send Messages** and **Embed Links**
    - Copy the generated URL, open it, and invite the bot to your server
 4. Enable **Developer Mode** (Discord User Settings → Advanced), right-click the target channel → **Copy Channel ID** (this is your `DISCORD_CHANNEL_ID`)
 
