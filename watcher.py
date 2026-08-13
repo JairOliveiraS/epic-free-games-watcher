@@ -6,8 +6,18 @@ import urllib.error
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
+DISCORD_CHANNEL_ID = os.environ.get("DISCORD_CHANNEL_ID")
 SEEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen_games.json")
 EPIC_API = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US"
+DISCORD_API = "https://discord.com/api/v10/channels/{channel_id}/messages"
+
+# Discord embed colors
+COLOR_FREE = 0x57F287      # green
+COLOR_UPCOMING = 0x5865F2  # blurple
+
+TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+DISCORD_ENABLED = bool(DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID)
 
 
 def load_seen():
@@ -106,11 +116,43 @@ def send_telegram(text):
         return False
 
 
+def send_discord(embed):
+    if not DISCORD_BOT_TOKEN or not DISCORD_CHANNEL_ID:
+        print("[ERROR] DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID must be set.")
+        return False
+    url = DISCORD_API.format(channel_id=DISCORD_CHANNEL_ID)
+    payload = json.dumps({"embeds": [embed]}).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=payload,
+        headers={
+            "Authorization": "Bot " + DISCORD_BOT_TOKEN,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status == 200:
+                print("[OK] Discord message sent.")
+                return True
+            else:
+                print("[ERROR] Discord API returned HTTP " + str(resp.status))
+                return False
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")
+        print("[ERROR] Failed to send Discord message: HTTP " + str(e.code) + " " + body)
+        return False
+    except Exception as e:
+        print("[ERROR] Failed to send Discord message: " + str(e))
+        return False
+
+
 def main():
     seen = load_seen()
     seen_current = set(seen.get("seen_current", []))
     seen_upcoming = set(seen.get("seen_upcoming", []))
 
+    print("[INFO] Channels active -> Telegram: " + str(TELEGRAM_ENABLED) + ", Discord: " + str(DISCORD_ENABLED))
     print("[INFO] Checking Epic Games Store for free games...")
     current_free, upcoming_free = fetch_free_games()
     print("[INFO] Found " + str(len(current_free)) + " currently free, " + str(len(upcoming_free)) + " upcoming free")
@@ -125,14 +167,26 @@ def main():
                 orig = "$" + str(game["original_price"] / 100.0)
             else:
                 orig = "FREE"
-            msg = (
+            text = (
                 "\U0001f3ae FREE NOW on Epic Games Store!\n\n"
                 "\U0001f4cc " + game["title"] + "\n"
-                "\U0001f4b0 " + orig + " \u2192 FREE\n"
+                "\U0001f4b0 " + orig + " → FREE\n"
                 "\U0001f4c5 Free until " + game["end"] + "\n\n"
                 "\U0001f517 " + url
             )
-            send_telegram(msg)
+            embed = {
+                "title": "\U0001f3ae FREE NOW: " + game["title"],
+                "url": url,
+                "color": COLOR_FREE,
+                "fields": [
+                    {"name": "Price", "value": orig + " → FREE", "inline": True},
+                    {"name": "Free until", "value": game["end"], "inline": True},
+                ],
+            }
+            if TELEGRAM_ENABLED:
+                send_telegram(text)
+            if DISCORD_ENABLED:
+                send_discord(embed)
             time.sleep(1)
         seen["seen_current"] = list(seen_current | {g["id"] for g in new_current})
     else:
@@ -144,13 +198,24 @@ def main():
         print("[INFO] Found " + str(len(new_upcoming)) + " new UPCOMING free game(s)!")
         for game in new_upcoming:
             url = "https://store.epicgames.com/p/" + game["slug"]
-            msg = (
+            text = (
                 "\U0001f52e UPCOMING FREE on Epic Games Store!\n\n"
                 "\U0001f4cc " + game["title"] + "\n"
                 "\U0001f4c5 Free from " + game["start"] + " to " + game["end"] + "\n\n"
                 "\U0001f517 " + url
             )
-            send_telegram(msg)
+            embed = {
+                "title": "\U0001f52e UPCOMING FREE: " + game["title"],
+                "url": url,
+                "color": COLOR_UPCOMING,
+                "fields": [
+                    {"name": "Free window", "value": game["start"] + " → " + game["end"], "inline": True},
+                ],
+            }
+            if TELEGRAM_ENABLED:
+                send_telegram(text)
+            if DISCORD_ENABLED:
+                send_discord(embed)
             time.sleep(1)
         seen["seen_upcoming"] = list(seen_upcoming | {g["id"] for g in new_upcoming})
     else:
