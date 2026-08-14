@@ -6,19 +6,16 @@ import urllib.error
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
-DISCORD_CHANNEL_ID = os.environ.get("DISCORD_CHANNEL_ID")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 SEEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen_games.json")
 EPIC_API = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US"
-DISCORD_API = "https://discord.com/api/v10/channels/{channel_id}/messages"
 
 # Discord embed colors
 COLOR_FREE = 0x57F287      # green
 COLOR_UPCOMING = 0x5865F2  # blurple
 
 TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
-DISCORD_ENABLED = bool(DISCORD_WEBHOOK_URL or (DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID))
+DISCORD_ENABLED = bool(DISCORD_WEBHOOK_URL)
 
 
 def load_seen():
@@ -31,6 +28,16 @@ def load_seen():
 def save_seen(data):
     with open(SEEN_FILE, "w") as f:
         json.dump(data, f, indent=2)
+
+
+def get_cover_image(game):
+    # Prefer the portrait box art, fall back to the thumbnail
+    images = game.get("keyImages", []) or []
+    for preferred in ("DieselGameBox", "Thumbnail"):
+        for img in images:
+            if img.get("type") == preferred and img.get("url"):
+                return img["url"]
+    return ""
 
 
 def fetch_free_games():
@@ -59,6 +66,7 @@ def fetch_free_games():
         price_info = game.get("price", {}).get("totalPrice", {})
         original_price = price_info.get("originalPrice", -1)
         discount_price = price_info.get("discountPrice", -1)
+        image = get_cover_image(game)
 
         # Current free: has an active promo and price is 0
         for offer in promos.get("promotionalOffers", []):
@@ -69,7 +77,8 @@ def fetch_free_games():
                     current_free.append({
                         "title": title, "slug": slug,
                         "start": start, "end": end,
-                        "id": slug, "original_price": original_price
+                        "id": slug, "original_price": original_price,
+                        "image": image
                     })
 
         # Upcoming free: has upcoming promo and is not already free
@@ -82,7 +91,8 @@ def fetch_free_games():
                         "title": title, "slug": slug,
                         "start": start, "end": end,
                         "id": slug + "_upcoming_" + start,
-                        "original_price": original_price
+                        "original_price": original_price,
+                        "image": image
                     })
 
     return current_free, upcoming_free
@@ -118,31 +128,21 @@ def send_telegram(text):
 
 
 def send_discord(embed):
-    if DISCORD_WEBHOOK_URL:
-        # Webhook: designed for server-to-server posts, reliable from GitHub Actions
-        url = DISCORD_WEBHOOK_URL
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        }
-        ok_statuses = (200, 204)
-    elif DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID:
-        # Bot API: may be blocked by Cloudflare (error 40333) on datacenter IPs
-        url = DISCORD_API.format(channel_id=DISCORD_CHANNEL_ID)
-        headers = {
-            "Authorization": "Bot " + DISCORD_BOT_TOKEN,
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        }
-        ok_statuses = (200,)
-    else:
-        print("[ERROR] DISCORD_WEBHOOK_URL or (DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID) must be set.")
+    if not DISCORD_WEBHOOK_URL:
+        print("[ERROR] DISCORD_WEBHOOK_URL must be set.")
         return False
     payload = json.dumps({"embeds": [embed]}).encode("utf-8")
-    req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+    req = urllib.request.Request(
+        DISCORD_WEBHOOK_URL, data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+        method="POST",
+    )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
-            if resp.status in ok_statuses:
+            if resp.status in (200, 204):
                 print("[OK] Discord message sent.")
                 return True
             else:
@@ -193,6 +193,8 @@ def main():
                     {"name": "Free until", "value": game["end"], "inline": True},
                 ],
             }
+            if game["image"]:
+                embed["thumbnail"] = {"url": game["image"]}
             if TELEGRAM_ENABLED:
                 send_telegram(text)
             if DISCORD_ENABLED:
@@ -222,6 +224,8 @@ def main():
                     {"name": "Free window", "value": game["start"] + " → " + game["end"], "inline": True},
                 ],
             }
+            if game["image"]:
+                embed["thumbnail"] = {"url": game["image"]}
             if TELEGRAM_ENABLED:
                 send_telegram(text)
             if DISCORD_ENABLED:
