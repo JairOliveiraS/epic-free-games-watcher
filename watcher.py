@@ -8,6 +8,7 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
 DISCORD_CHANNEL_ID = os.environ.get("DISCORD_CHANNEL_ID")
+DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 SEEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen_games.json")
 EPIC_API = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US"
 DISCORD_API = "https://discord.com/api/v10/channels/{channel_id}/messages"
@@ -17,7 +18,7 @@ COLOR_FREE = 0x57F287      # green
 COLOR_UPCOMING = 0x5865F2  # blurple
 
 TELEGRAM_ENABLED = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
-DISCORD_ENABLED = bool(DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID)
+DISCORD_ENABLED = bool(DISCORD_WEBHOOK_URL or (DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID))
 
 
 def load_seen():
@@ -117,23 +118,31 @@ def send_telegram(text):
 
 
 def send_discord(embed):
-    if not DISCORD_BOT_TOKEN or not DISCORD_CHANNEL_ID:
-        print("[ERROR] DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID must be set.")
-        return False
-    url = DISCORD_API.format(channel_id=DISCORD_CHANNEL_ID)
-    payload = json.dumps({"embeds": [embed]}).encode("utf-8")
-    req = urllib.request.Request(
-        url, data=payload,
-        headers={
+    if DISCORD_WEBHOOK_URL:
+        # Webhook: designed for server-to-server posts, reliable from GitHub Actions
+        url = DISCORD_WEBHOOK_URL
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
+        ok_statuses = (200, 204)
+    elif DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID:
+        # Bot API: may be blocked by Cloudflare (error 40333) on datacenter IPs
+        url = DISCORD_API.format(channel_id=DISCORD_CHANNEL_ID)
+        headers = {
             "Authorization": "Bot " + DISCORD_BOT_TOKEN,
             "Content-Type": "application/json",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
-        method="POST",
-    )
+        }
+        ok_statuses = (200,)
+    else:
+        print("[ERROR] DISCORD_WEBHOOK_URL or (DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID) must be set.")
+        return False
+    payload = json.dumps({"embeds": [embed]}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
-            if resp.status == 200:
+            if resp.status in ok_statuses:
                 print("[OK] Discord message sent.")
                 return True
             else:
