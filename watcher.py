@@ -31,9 +31,9 @@ def save_seen(data):
 
 
 def get_cover_image(game):
-    # Prefer the portrait box art, fall back to the thumbnail
+    # Prefer the wide store banner, fall back to the portrait box art
     images = game.get("keyImages", []) or []
-    for preferred in ("DieselGameBox", "Thumbnail"):
+    for preferred in ("DieselStoreFrontWide", "OfferImageWide", "DieselGameBox", "Thumbnail"):
         for img in images:
             if img.get("type") == preferred and img.get("url"):
                 return img["url"]
@@ -194,7 +194,7 @@ def main():
                 ],
             }
             if game["image"]:
-                embed["thumbnail"] = {"url": game["image"]}
+                embed["image"] = {"url": game["image"]}
             if TELEGRAM_ENABLED:
                 send_telegram(text)
             if DISCORD_ENABLED:
@@ -225,7 +225,7 @@ def main():
                 ],
             }
             if game["image"]:
-                embed["thumbnail"] = {"url": game["image"]}
+                embed["image"] = {"url": game["image"]}
             if TELEGRAM_ENABLED:
                 send_telegram(text)
             if DISCORD_ENABLED:
