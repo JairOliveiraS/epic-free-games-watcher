@@ -1,22 +1,24 @@
 {
   "seen_current": [
-    "breathedge",
-    "70e9a8a90305449a88a38b708399e605",
     "epic-mage-bundle",
+    "c27af3c6ec3a47afb720e580138de63e",
     "cardpocalypse/home",
-    "c27af3c6ec3a47afb720e580138de63e"
+    "70e9a8a90305449a88a38b708399e605",
+    "breathedge",
+    "68a0e4e0a68d42ffba405593a89c55ba"
   ],
   "seen_upcoming": [
-    "ghostrunner-2_upcoming_2026-09-10",
     "breathedge_upcoming_2026-08-27",
-    "lisa-the-definitive-edition_upcoming_2026-09-17",
+    "68a0e4e0a68d42ffba405593a89c55ba_upcoming_2026-09-03",
+    "lost-castle-the-old-ones-awaken_upcoming_2026-08-30",
     "d72ccf025e574bb4a725e3079ea34081_upcoming_2026-09-10",
     "32b3e0adbe0c4399be1874958194f97f_upcoming_2026-09-03",
+    "lisa-the-definitive-edition_upcoming_2026-09-17",
     "breathedge_upcoming_2026-09-03",
-    "cardpocalypse/home_upcoming_2026-08-20",
-    "68a0e4e0a68d42ffba405593a89c55ba_upcoming_2026-09-03",
     "c27af3c6ec3a47afb720e580138de63e_upcoming_2026-08-27",
-    "lost-castle-the-old-ones-awaken_upcoming_2026-08-30",
-    "monument-valley-02_upcoming_2026-09-03"
+    "ghostrunner-2_upcoming_2026-09-10",
+    "monument-valley-02_upcoming_2026-09-03",
+    "luftrausers_upcoming_2026-09-10",
+    "cardpocalypse/home_upcoming_2026-08-20"
   ]
 }
